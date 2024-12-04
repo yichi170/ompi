@@ -52,6 +52,7 @@
 #    include <sys/time.h>
 #endif /* HAVE_SYS_TIME_H */
 #include <time.h>
+#include <stdio.h>
 
 #include "opal/mca/btl/base/btl_base_error.h"
 #include "opal/util/event.h"
@@ -156,7 +157,7 @@ void mca_btl_fftcp_endpoint_dump(int level, const char *fname, int lineno, const
     if (used >= DEBUG_LENGTH)
         goto out;
 
-    ff_getsockname(btl_endpoint->endpoint_sd, (struct sockaddr *) &inaddr, &addrlen);
+    getsockname(btl_endpoint->endpoint_sd, (struct sockaddr *) &inaddr, &addrlen);
 #    if OPAL_ENABLE_IPV6
     {
         char *address;
@@ -172,7 +173,7 @@ void mca_btl_fftcp_endpoint_dump(int level, const char *fname, int lineno, const
     if (used >= DEBUG_LENGTH)
         goto out;
 #    endif
-    ff_getpeername(btl_endpoint->endpoint_sd, (struct sockaddr *) &inaddr, &addrlen);
+    getpeername(btl_endpoint->endpoint_sd, (struct sockaddr *) &inaddr, &addrlen);
 #    if OPAL_ENABLE_IPV6
     {
         char *address;
@@ -226,14 +227,14 @@ void mca_btl_fftcp_endpoint_dump(int level, const char *fname, int lineno, const
     }
 
     if (full_info) {
-        if ((flags = ff_fcntl(btl_endpoint->endpoint_sd, F_GETFL, 0)) < 0) {
+        if ((flags = fcntl(btl_endpoint->endpoint_sd, F_GETFL, 0)) < 0) {
             BTL_ERROR(
                 ("ff_fcntl(F_GETFL) failed: %s (%d)", strerror(opal_socket_errno), opal_socket_errno));
         }
 
 #    if defined(SO_SNDBUF)
         obtlen = sizeof(sndbuf);
-        if (ff_getsockopt(btl_endpoint->endpoint_sd, SOL_SOCKET, SO_SNDBUF, (char *) &sndbuf, &obtlen)
+        if (getsockopt(btl_endpoint->endpoint_sd, SOL_SOCKET, SO_SNDBUF, (char *) &sndbuf, &obtlen)
             < 0) {
             BTL_ERROR(
                 ("SO_SNDBUF option: %s (%d)", strerror(opal_socket_errno), opal_socket_errno));
@@ -243,7 +244,7 @@ void mca_btl_fftcp_endpoint_dump(int level, const char *fname, int lineno, const
 #    endif
 #    if defined(SO_RCVBUF)
         obtlen = sizeof(rcvbuf);
-        if (ff_getsockopt(btl_endpoint->endpoint_sd, SOL_SOCKET, SO_RCVBUF, (char *) &rcvbuf, &obtlen)
+        if (getsockopt(btl_endpoint->endpoint_sd, SOL_SOCKET, SO_RCVBUF, (char *) &rcvbuf, &obtlen)
             < 0) {
             BTL_ERROR(
                 ("SO_RCVBUF option: %s (%d)", strerror(opal_socket_errno), opal_socket_errno));
@@ -253,7 +254,7 @@ void mca_btl_fftcp_endpoint_dump(int level, const char *fname, int lineno, const
 #    endif
 #    if defined(TCP_NODELAY)
         obtlen = sizeof(nodelay);
-        if (ff_getsockopt(btl_endpoint->endpoint_sd, IPPROTO_TCP, TCP_NODELAY, (char *) &nodelay,
+        if (getsockopt(btl_endpoint->endpoint_sd, IPPROTO_TCP, TCP_NODELAY, (char *) &nodelay,
                        &obtlen)
             < 0) {
             BTL_ERROR(
@@ -686,7 +687,7 @@ void mca_btl_fftcp_set_socket_options(int sd)
 #endif
 #if defined(SO_SNDBUF)
     if (mca_btl_fftcp_component.tcp_sndbuf > 0
-        && ff_setsockopt(sd, SOL_SOCKET, SO_SNDBUF, (char *) &mca_btl_fftcp_component.tcp_sndbuf,
+        && setsockopt(sd, SOL_SOCKET, SO_SNDBUF, (char *) &mca_btl_fftcp_component.tcp_sndbuf,
                       sizeof(int))
                < 0) {
         BTL_ERROR(("ff_setsockopt(SO_SNDBUF) failed: %s (%d)", strerror(opal_socket_errno),
@@ -695,7 +696,7 @@ void mca_btl_fftcp_set_socket_options(int sd)
 #endif
 #if defined(SO_RCVBUF)
     if (mca_btl_fftcp_component.tcp_rcvbuf > 0
-        && ff_setsockopt(sd, SOL_SOCKET, SO_RCVBUF, (char *) &mca_btl_fftcp_component.tcp_rcvbuf,
+        && setsockopt(sd, SOL_SOCKET, SO_RCVBUF, (char *) &mca_btl_fftcp_component.tcp_rcvbuf,
                       sizeof(int))
                < 0) {
         BTL_ERROR(("ff_setsockopt(SO_RCVBUF) failed: %s (%d)", strerror(opal_socket_errno),
@@ -708,7 +709,7 @@ void mca_btl_fftcp_set_socket_options(int sd)
      * the endpoint.
      */
     int optval2 = 1;
-    if (ff_setsockopt(sd, SOL_SOCKET, SO_NOSIGPIPE, (char *) &optval2, sizeof(optval2)) < 0) {
+    if (setsockopt(sd, SOL_SOCKET, SO_NOSIGPIPE, (char *) &optval2, sizeof(optval2)) < 0) {
         BTL_ERROR(("ff_setsockopt(SO_NOSIGPIPE) failed: %s (%d)", strerror(opal_socket_errno),
                    opal_socket_errno));
     }
@@ -750,7 +751,7 @@ static int mca_btl_fftcp_endpoint_start_connect(mca_btl_base_endpoint_t *btl_end
     mca_btl_fftcp_endpoint_event_init(btl_endpoint);
 
     /* setup the socket as non-blocking */
-    if ((flags = ff_fcntl(btl_endpoint->endpoint_sd, F_GETFL, 0)) < 0) {
+    if ((flags = fcntl(btl_endpoint->endpoint_sd, F_GETFL, 0)) < 0) {
         opal_show_help("help-mpi-btl-tcp.txt", "socket flag fail", true, opal_process_info.nodename,
                        getpid(), "ff_fcntl(sd, F_GETFL, 0)", strerror(opal_socket_errno),
                        opal_socket_errno);
@@ -758,7 +759,7 @@ static int mca_btl_fftcp_endpoint_start_connect(mca_btl_base_endpoint_t *btl_end
         return OPAL_ERR_UNREACH;
     } else {
         flags |= O_NONBLOCK;
-        if (ff_fcntl(btl_endpoint->endpoint_sd, F_SETFL, flags) < 0) {
+        if (fcntl(btl_endpoint->endpoint_sd, F_SETFL, flags) < 0) {
             opal_show_help("help-mpi-btl-tcp.txt", "socket flag fail", true,
                            opal_process_info.nodename, getpid(),
                            "ff_fcntl(sd, F_SETFL, flags & O_NONBLOCK)", strerror(opal_socket_errno),
@@ -778,7 +779,7 @@ static int mca_btl_fftcp_endpoint_start_connect(mca_btl_base_endpoint_t *btl_end
      * might do something unexpected with routing */
     if (endpoint_addr.ss_family == AF_INET) {
         assert(NULL != &btl_endpoint->endpoint_btl->tcp_ifaddr);
-        if (ff_bind(btl_endpoint->endpoint_sd,
+        if (bind(btl_endpoint->endpoint_sd,
                  (struct sockaddr *) &btl_endpoint->endpoint_btl->tcp_ifaddr,
                  sizeof(struct sockaddr_in))
             < 0) {
@@ -881,7 +882,7 @@ static int mca_btl_fftcp_endpoint_complete_connect(mca_btl_base_endpoint_t *btl_
     mca_btl_fftcp_proc_tosocks(btl_endpoint->endpoint_addr, &endpoint_addr);
 
     /* check connect completion status */
-    if (ff_getsockopt(btl_endpoint->endpoint_sd, SOL_SOCKET, SO_ERROR, (char *) &so_error, &so_length)
+    if (getsockopt(btl_endpoint->endpoint_sd, SOL_SOCKET, SO_ERROR, (char *) &so_error, &so_length)
         < 0) {
         opal_show_help("help-mpi-btl-tcp.txt", "socket flag fail", true, opal_process_info.nodename,
                        getpid(), "ff_fcntl(sd, F_GETFL, 0)", strerror(opal_socket_errno),

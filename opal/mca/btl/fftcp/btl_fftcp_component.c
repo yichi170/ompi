@@ -59,6 +59,7 @@
 #ifdef HAVE_SYS_TIME_H
 #    include <sys/time.h>
 #endif
+#include <stdio.h>
 
 #include "opal/constants.h"
 #include "opal/mca/btl/base/base.h"
@@ -928,12 +929,21 @@ static int mca_btl_fftcp_component_create_listen(uint16_t af_family)
     opal_socklen_t addrlen;
 
     /* create a listen socket for incoming connections */
-    sd = socket(af_family, SOCK_STREAM, 0);
+    char *ffargv[4] = {
+        "ompi",
+        "--conf=/data/f-stack/config.ini",
+        "--proc-type=primary",
+        "--proc-id=0"
+    };
+    ff_init(4, ffargv);
+    sd = ff_socket(af_family, SOCK_STREAM, 0);
     if (sd < 0) {
         if (EAFNOSUPPORT != opal_socket_errno) {
             BTL_ERROR(("socket() failed: %s (%d)", strerror(opal_socket_errno), opal_socket_errno));
         }
         return OPAL_ERR_IN_ERRNO;
+    } else {
+        printf("[fftcp_component_create_listen] socket's sd: %d\n", sd);
     }
 
     mca_btl_fftcp_set_socket_options(sd);
@@ -981,7 +991,7 @@ static int mca_btl_fftcp_component_create_listen(uint16_t af_family)
 
     { /* Don't reuse ports */
         int flg = 0;
-        if (setsockopt(sd, SOL_SOCKET, SO_REUSEADDR, (const char *) &flg, sizeof(flg)) < 0) {
+        if (ff_setsockopt(sd, SOL_SOCKET, SO_REUSEADDR, (const char *) &flg, sizeof(flg)) < 0) {
             BTL_ERROR(("mca_btl_fftcp_create_listen: unable to unset the "
                        "SO_REUSEADDR option (%s:%d)\n",
                        strerror(opal_socket_errno), opal_socket_errno));
@@ -1013,7 +1023,7 @@ static int mca_btl_fftcp_component_create_listen(uint16_t af_family)
             opal_output_verbose(30, opal_btl_base_framework.framework_output,
                                 "btl:tcp: Attempting to bind to %s port %d",
                                 (AF_INET == af_family) ? "AF_INET" : "AF_INET6", port + index);
-            if (bind(sd, (struct sockaddr *) &inaddr, addrlen) < 0) {
+            if (ff_bind(sd, (struct linux_sockaddr *) &inaddr, addrlen) < 0) {
                 if ((EADDRINUSE == opal_socket_errno) || (EADDRNOTAVAIL == opal_socket_errno)) {
                     continue;
                 }
@@ -1044,7 +1054,7 @@ static int mca_btl_fftcp_component_create_listen(uint16_t af_family)
     }
 socket_binded:
     /* resolve system assigned port */
-    if (getsockname(sd, (struct sockaddr *) &inaddr, &addrlen) < 0) {
+    if (ff_getsockname(sd, (struct linux_sockaddr *) &inaddr, &addrlen) < 0) {
         BTL_ERROR(
             ("getsockname() failed: %s (%d)", strerror(opal_socket_errno), opal_socket_errno));
         CLOSE_THE_SOCKET(sd);
@@ -1071,14 +1081,14 @@ socket_binded:
     }
 
     /* setup listen backlog to maximum allowed by kernel */
-    if (listen(sd, SOMAXCONN) < 0) {
+    if (ff_listen(sd, SOMAXCONN) < 0) {
         BTL_ERROR(("listen() failed: %s (%d)", strerror(opal_socket_errno), opal_socket_errno));
         CLOSE_THE_SOCKET(sd);
         return OPAL_ERROR;
     }
 
     /* set socket up to be non-blocking, otherwise accept could block */
-    if ((flags = fcntl(sd, F_GETFL, 0)) < 0) {
+    if ((flags = ff_fcntl(sd, F_GETFL, 0)) < 0) {
         opal_show_help("help-mpi-btl-tcp.txt", "socket flag fail", true, opal_process_info.nodename,
                        getpid(), "fcntl(sd, F_GETFL, 0)", strerror(opal_socket_errno),
                        opal_socket_errno);
@@ -1086,7 +1096,7 @@ socket_binded:
         return OPAL_ERROR;
     } else {
         flags |= O_NONBLOCK;
-        if (fcntl(sd, F_SETFL, flags) < 0) {
+        if (ff_fcntl(sd, F_SETFL, flags) < 0) {
             opal_show_help("help-mpi-btl-tcp.txt", "socket flag fail", true,
                            opal_process_info.nodename, getpid(),
                            "fcntl(sd, F_SETFL, flags & O_NONBLOCK)", strerror(opal_socket_errno),
@@ -1175,6 +1185,7 @@ socket_binded:
         MCA_BTL_TCP_ACTIVATE_EVENT(&mca_btl_fftcp_component.tcp6_recv_event, 0);
     }
 #endif
+    printf("[mca_btl_fftcp_component_create_listen] success!\n");
     return OPAL_SUCCESS;
 }
 
@@ -1237,7 +1248,9 @@ static int mca_btl_fftcp_component_exchange(void)
         addrs[i].addr_bandwidth = btl->super.btl_bandwidth;
     }
 
+    printf("[OPAL_MODEX_SEND] before\n");
     OPAL_MODEX_SEND(rc, PMIX_GLOBAL, &mca_btl_fftcp_component.super.btl_version, addrs, size);
+    printf("[OPAL_MODEX_SEND] after\n");
     free(addrs);
 
     return rc;
@@ -1284,6 +1297,8 @@ mca_btl_base_module_t **mca_btl_fftcp_component_init(int *num_btl_modules,
     if (OPAL_SUCCESS != (ret = mca_btl_fftcp_component_create_instances())) {
         return 0;
     }
+
+    printf("This is FFTCP\n");
 
     /* create a TCP listen socket for incoming connection attempts */
     if (OPAL_SUCCESS != (ret = mca_btl_fftcp_component_create_listen(AF_INET))) {

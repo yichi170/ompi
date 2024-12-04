@@ -36,6 +36,8 @@
 #include "opal/util/output.h"
 #include "opal/util/show_help.h"
 
+#include <stdio.h>
+
 OBJ_CLASS_INSTANCE(mca_btl_base_selected_module_t, opal_list_item_t, NULL, NULL);
 
 /**
@@ -124,6 +126,7 @@ int mca_btl_base_select(bool enable_progress_threads, bool enable_mpi_threads)
             /* Otherwise, if it initialized properly, save it. */
 
             else {
+		printf("init component: %s\n", component->btl_version.mca_component_name);
                 opal_output_verbose(10, opal_btl_base_framework.framework_output,
                                     "select: init of component %s returned success",
                                     component->btl_version.mca_component_name);

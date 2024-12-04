@@ -1285,6 +1285,8 @@ mca_btl_base_module_t **mca_btl_tcp_component_init(int *num_btl_modules,
         return 0;
     }
 
+    printf("This is TCP\n");
+
     /* create a TCP listen socket for incoming connection attempts */
     if (OPAL_SUCCESS != (ret = mca_btl_tcp_component_create_listen(AF_INET))) {
         return 0;

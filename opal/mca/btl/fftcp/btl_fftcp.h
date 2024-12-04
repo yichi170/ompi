@@ -42,6 +42,7 @@
 #ifdef HAVE_UNISTD_H
 #    include <unistd.h>
 #endif
+#include <stdio.h>
 
 /* Open MPI includes */
 #include "opal/class/opal_free_list.h"
@@ -185,8 +186,8 @@ extern mca_btl_fftcp_module_t mca_btl_fftcp_module;
     {                                                                                              \
         OPAL_OUTPUT_VERBOSE((20, opal_btl_base_framework.framework_output, "CLOSE FD %d at %s:%d", \
                              socket, __FILE__, __LINE__));                                         \
-        (void) ff_shutdown(socket, SHUT_RDWR);                                                        \
-        (void) ff_close(socket);                                                                      \
+        (void) shutdown(socket, SHUT_RDWR);                                                        \
+        (void) close(socket);                                                                      \
     }
 
 /**
