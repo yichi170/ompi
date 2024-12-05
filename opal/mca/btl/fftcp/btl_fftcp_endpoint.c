@@ -818,7 +818,7 @@ static int mca_btl_fftcp_endpoint_start_connect(mca_btl_base_endpoint_t *btl_end
                         opal_net_get_hostname((struct sockaddr *) &endpoint_addr),
                         ntohs(btl_endpoint->endpoint_addr->addr_port));
 
-    if (0 == connect(btl_endpoint->endpoint_sd, (struct sockaddr *) &endpoint_addr, addrlen)) {
+    if (0 == ff_connect(btl_endpoint->endpoint_sd, (struct linux_sockaddr *) &endpoint_addr, addrlen)) {
         opal_output_verbose(10, opal_btl_base_framework.framework_output,
                             "btl:tcp: connect() to %s:%d completed",
                             opal_net_get_hostname((struct sockaddr *) &endpoint_addr),

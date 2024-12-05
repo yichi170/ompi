@@ -230,6 +230,11 @@ static int mca_btl_fftcp_component_register(void)
     mca_btl_fftcp_param_register_uint("links", NULL, 1, OPAL_INFO_LVL_4,
                                     &mca_btl_fftcp_component.tcp_num_links);
     mca_btl_fftcp_param_register_string(
+        "fstack_addrs",
+        "Comma-delimited list of addresses to use for MPI "
+        "communication (e.g., \"10.10.1.2,10.10.1.1\").",
+        "", OPAL_INFO_LVL_1, &mca_btl_fftcp_component.fstack_addrs);
+    mca_btl_fftcp_param_register_string(
         "if_include",
         "Comma-delimited list of devices and/or CIDR notation of networks to use for MPI "
         "communication (e.g., \"eth0,192.168.0.0/16\").  Mutually exclusive with "
@@ -509,12 +514,22 @@ static int mca_btl_fftcp_create(const int if_kindex, const char *if_name)
      * 10.1.0.1 as the one that is published in the modex and used for
      * connection.
      */
+    int ip_idx = 0;
+    char **new_ip = opal_argv_split(mca_btl_fftcp_component.fstack_addrs, ',');
     OPAL_LIST_FOREACH (selected_interface, &opal_if_list, opal_if_t) {
         if (if_kindex != selected_interface->if_kernel_index) {
             continue;
         }
 
         if_index = selected_interface->if_index;
+
+        char ip_str[INET6_ADDRSTRLEN];
+        struct sockaddr_in *sa_in = (struct sockaddr_in *)&selected_interface->if_addr;
+        inet_ntop(AF_INET, &sa_in->sin_addr, ip_str, sizeof(ip_str));
+        printf("[old] selected_interface->if_addr: %s\n", ip_str);
+        inet_pton(AF_INET, new_ip[ip_idx++], &sa_in->sin_addr);
+        inet_ntop(AF_INET, &sa_in->sin_addr, ip_str, sizeof(ip_str));
+        printf("[new] selected_interface->if_addr: %s\n", ip_str);
 
         memcpy((struct sockaddr *) &addr, &selected_interface->if_addr,
                MIN(sizeof(struct sockaddr_storage), sizeof(selected_interface->if_addr)));
@@ -1023,6 +1038,11 @@ static int mca_btl_fftcp_component_create_listen(uint16_t af_family)
             opal_output_verbose(30, opal_btl_base_framework.framework_output,
                                 "btl:tcp: Attempting to bind to %s port %d",
                                 (AF_INET == af_family) ? "AF_INET" : "AF_INET6", port + index);
+
+            char ip_str[INET_ADDRSTRLEN];  // INET_ADDRSTRLEN is 16
+            inet_ntop(AF_INET, &((struct sockaddr_in *) &inaddr)->sin_addr, ip_str, sizeof(ip_str));
+            printf("[Create Connection] IP Address: %s\n", ip_str);
+
             if (ff_bind(sd, (struct linux_sockaddr *) &inaddr, addrlen) < 0) {
                 if ((EADDRINUSE == opal_socket_errno) || (EADDRNOTAVAIL == opal_socket_errno)) {
                     continue;
@@ -1248,9 +1268,7 @@ static int mca_btl_fftcp_component_exchange(void)
         addrs[i].addr_bandwidth = btl->super.btl_bandwidth;
     }
 
-    printf("[OPAL_MODEX_SEND] before\n");
     OPAL_MODEX_SEND(rc, PMIX_GLOBAL, &mca_btl_fftcp_component.super.btl_version, addrs, size);
-    printf("[OPAL_MODEX_SEND] after\n");
     free(addrs);
 
     return rc;
@@ -1371,7 +1389,7 @@ static void mca_btl_fftcp_component_accept_handler(int incoming_sd, short ignore
         opal_socklen_t addrlen = sizeof(addr);
 
         mca_btl_fftcp_event_t *event;
-        int sd = accept(incoming_sd, (struct sockaddr *) &addr, &addrlen);
+        int sd = ff_accept(incoming_sd, (struct linux_sockaddr *) &addr, &addrlen);
         if (sd < 0) {
             if (opal_socket_errno == EINTR) {
                 continue;
@@ -1524,7 +1542,7 @@ static void mca_btl_fftcp_component_recv_handler(int sd, short flags, void *user
     }
 
     /* lookup peer address */
-    if (getpeername(sd, (struct sockaddr *) &addr, &addr_len) != 0) {
+    if (ff_getpeername(sd, (struct linux_sockaddr *) &addr, &addr_len) != 0) {
         if (ENOTCONN != opal_socket_errno) {
             opal_show_help("help-mpi-btl-tcp.txt", "server getpeername failed", true,
                            opal_process_info.nodename, getpid(), strerror(opal_socket_errno),

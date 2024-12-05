@@ -124,6 +124,7 @@ struct mca_btl_fftcp_component_t {
 #endif
     /* Port range restriction */
 
+    char *fstack_addrs;   /**< comma separated list of address using for commuication */
     char *tcp_if_include;   /**< comma separated list of interface to include */
     char *tcp_if_exclude;   /**< comma separated list of interface to exclude */
     int tcp_sndbuf;         /**< socket sndbuf size */
